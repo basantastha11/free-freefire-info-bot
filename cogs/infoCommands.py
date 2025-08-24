@@ -18,19 +18,20 @@ class InfoCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.api_url = "http://raw.thug4ff.com/info"
+
+        # === NEW: image endpoints ===
+        self.profile_card_url = "https://genprofile-24nr.onrender.com/api/profile_card"  # embed भित्र
+        self.outfit_url = "https://genprofile-24nr.onrender.com/api/profile"             # embed बाहिर
+
+        # (old variable kept unused to avoid breaking anything else)
         self.generate_url = "https://profile-generator.up.railway.app/api/profile"
+
         self.session = aiohttp.ClientSession()
         self.config_data = self.load_config()
         self.cooldowns = {}
 
-   
-
-    
-
     def convert_unix_timestamp(self ,timestamp: int) -> str:
         return datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-
-
 
     def check_request_limit(self, guild_id):
         try:
@@ -70,8 +71,6 @@ class InfoCommands(commands.Cog):
                 json.dump(self.config_data, f, indent=4, ensure_ascii=False)
         except IOError as e:
             print(f"Error saving config: {e}")
-
-
 
     async def is_channel_allowed(self, ctx):
         try:
@@ -151,8 +150,6 @@ class InfoCommands(commands.Cog):
         if not await self.is_channel_allowed(ctx):
             return await ctx.send(" This command is not allowed in this channel.", ephemeral=True)
 
-
-
         cooldown = self.config_data["global_settings"]["default_cooldown"]
         if guild_id in self.config_data["servers"]:
             cooldown = self.config_data["servers"][guild_id]["config"].get("cooldown", cooldown)
@@ -164,7 +161,6 @@ class InfoCommands(commands.Cog):
                 return await ctx.send(f" Please wait {remaining}s before using this command again", ephemeral=True)
 
         self.cooldowns[ctx.author.id] = datetime.now()
-       
 
         try:
             async with ctx.typing():
@@ -175,7 +171,6 @@ class InfoCommands(commands.Cog):
                         return await ctx.send("API error. Try again later.")
                     data = await response.json()
 
-            
             basic_info = data.get('basicInfo', {})
             captain_info = data.get('captainBasicInfo', {})
             clan_info = data.get('clanBasicInfo', {})
@@ -183,7 +178,6 @@ class InfoCommands(commands.Cog):
             pet_info = data.get('petInfo', {})
             profile_info = data.get('profileInfo', {})
             social_info = data.get('socialInfo', {})
-
 
             region = basic_info.get('region', 'Not found')
 
@@ -204,7 +198,6 @@ class InfoCommands(commands.Cog):
                 f"**├─ Honor Score**: {credit_score_info.get('creditScore', 'Not found')}",
                 f"**└─ Signature**: {social_info.get('signature', 'None') or 'None'}"
             ]), inline=False)
-          
 
             embed.add_field(name="", value="\n".join([
                 "**┌  ACCOUNT ACTIVITY**",
@@ -214,7 +207,6 @@ class InfoCommands(commands.Cog):
                 f"**├─ CS Rank**: {'' if basic_info.get('showCsRank') else 'Not found'} {basic_info.get('csRankingPoints', '?')} ",
                 f"**├─ Created At**: {self.convert_unix_timestamp(int(basic_info.get('createAt', 'Not found')))}",
                 f"**└─ Last Login**: {self.convert_unix_timestamp(int(basic_info.get('lastLoginAt', 'Not found')))}"
-
             ]), inline=False)
 
             embed.add_field(name="", value="\n".join([
@@ -244,43 +236,46 @@ class InfoCommands(commands.Cog):
                 if captain_info:
                     guild_info.extend([
                         "**└─ Leader Info**:",
-                        f"    **├─ Leader Name**: {captain_info.get('nickname', 'Not found')}",
-                        f"    **├─ Leader UID**: `{captain_info.get('accountId', 'Not found')}`",
-                        f"    **├─ Leader Level**: {captain_info.get('level', 'Not found')} (Exp: {captain_info.get('exp', '?')})",
-                        f"    **├─ Last Login**: {self.convert_unix_timestamp(int(captain_info.get('lastLoginAt', 'Not found')))}",
-                        f"    **├─ Title**: {captain_info.get('title', 'Not found')}",
-                        f"    **├─ BP Badges**: {captain_info.get('badgeCnt', '?')}",
-                        f"    **├─ BR Rank**: {'' if captain_info.get('showBrRank') else 'Not found'} {captain_info.get('rankingPoints', 'Not found')}",
-                        f"    **└─ CS Rank**: {'' if captain_info.get('showCsRank') else 'Not found'} {captain_info.get('csRankingPoints', 'Not found')} "
+                        f"    **├─ Leader Name**: {captain_info.get('nickname', 'Not found')}",
+                        f"    **├─ Leader UID**: `{captain_info.get('accountId', 'Not found')}`",
+                        f"    **├─ Leader Level**: {captain_info.get('level', 'Not found')} (Exp: {captain_info.get('exp', '?')})",
+                        f"    **├─ Last Login**: {self.convert_unix_timestamp(int(captain_info.get('lastLoginAt', 'Not found')))}",
+                        f"    **├─ Title**: {captain_info.get('title', 'Not found')}",
+                        f"    **├─ BP Badges**: {captain_info.get('badgeCnt', '?')}",
+                        f"    **├─ BR Rank**: {'' if captain_info.get('showBrRank') else 'Not found'} {captain_info.get('rankingPoints', 'Not found')}",
+                        f"    **└─ CS Rank**: {'' if captain_info.get('showCsRank') else 'Not found'} {captain_info.get('csRankingPoints', 'Not found')} "
                     ])
                 embed.add_field(name="", value="\n".join(guild_info), inline=False)
 
+            # === NEW: profile card image inside embed ===
+            try:
+                embed.set_image(url=f"{self.profile_card_url}?uid={uid}")
+            except Exception as e:
+                print("Failed to set profile card image:", e)
 
-
-            embed.set_footer(text="DEVELOPED BY THUG")
+            embed.set_footer(text="DEVELOPED BY M8N")
             await ctx.send(embed=embed)
 
+            # === NEW: outfit image as a separate message (outside embed) ===
             if region and uid:
                 try:
-                    image_url = f"{self.generate_url}?uid={uid}"
-                    print(f"Url d'image = {image_url}")
-                    if image_url:
-                        async with self.session.get(image_url) as img_file:
-                            if img_file.status == 200:
-                                with io.BytesIO(await img_file.read()) as buf:
-                                    file = discord.File(buf, filename=f"outfit_{uuid.uuid4().hex[:8]}.png")
-                                    await ctx.send(file=file)  # ✅ ENVOYER L'IMAGE
-                                    print("Image envoyée avec succès")
-                            else:
-                                print(f"Erreur HTTP: {img_file.status}")
+                    image_url = f"{self.outfit_url}?uid={uid}"
+                    print(f"Outfit Image URL = {image_url}")
+                    async with self.session.get(image_url) as img_file:
+                        if img_file.status == 200:
+                            with io.BytesIO(await img_file.read()) as buf:
+                                file = discord.File(buf, filename=f"outfit_{uuid.uuid4().hex[:8]}.png")
+                                await ctx.send(file=file)
+                                print("Outfit image sent successfully")
+                        else:
+                            print(f"HTTP error while fetching outfit: {img_file.status}")
                 except Exception as e:
-                    print("Image generation failed:", e)
+                    print("Outfit image fetch failed:", e)
 
         except Exception as e:
             await ctx.send(f" Unexpected error: `{e}`")
         finally:
             gc.collect()
-
 
     async def cog_unload(self):
         await self.session.close()
@@ -307,7 +302,6 @@ class InfoCommands(commands.Cog):
             description="The Free Fire API is not responding. Try again later.",
             color=0xF39C12
         ))
-
 
 
 async def setup(bot):
